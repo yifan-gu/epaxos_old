@@ -25,7 +25,11 @@ func (r *Replica) sendPrepare(replicaId int, instanceId InstanceId, messageChan 
 
 	// clean preAccepCount
 	inst.recoveryInfo = NewRecoveryInfo()
-	inst.recoveryInfo.status = preAccepted
+	if inst.status == preAccepted {
+		inst.recoveryInfo.status = preAccepted
+		inst.recoveryInfo.preAcceptCount = 1
+	}
+
 	inst.ballot.incNumber()
 	inst.ballot.setReplicaId(r.Id)
 
@@ -89,8 +93,9 @@ func (r *Replica) recvPrepareReply(p *PrepareReply, m chan Message) {
 	inst := r.InstanceMatrix[p.replicaId][p.instanceId]
 
 	if inst == nil {
-		// it shouldn't happen
-		return
+		msg := fmt.Sprintf("shouldn't get here, replicaId = %d, instanceId = %d",
+			p.replicaId, p.instanceId)
+		panic(msg)
 	}
 	if !inst.isAtStatus(preparing) {
 		// this is a delayed message. ignore it
@@ -107,54 +112,17 @@ func (r *Replica) recvPrepareReply(p *PrepareReply, m chan Message) {
 		return
 	}
 
-	rInfo := inst.recoveryInfo
-	rInfo.replyCount++
+	inst.processPrepareReplies(p)
 
-	// handle differnt replies
-	// once we receive an "accepted" reply,
-	// then we can send Accepts, but we need to send the most recent one
-	if p.status == accepted {
-		rInfo.status = accepted
-
-		// only record the most recent accepted instance
-		if p.ballot.Compare(rInfo.maxAcceptBallot) > 0 {
-			rInfo.maxAcceptBallot, rInfo.cmds, rInfo.deps = p.ballot, p.cmds, p.deps
-		}
-	}
-	// if we receive a "preAccepted" reply, and we haven't receive any "accepted" replies
-	// then we should check if we can(not) send Accept
-	if p.status == preAccepted && rInfo.status < accepted {
-		rInfo.status = preAccepted
-		rInfo.preAcceptCount++
-
-		// if violate the "N/2 identical replies" condition {
-		//         union deps
-		// }
-	}
-
-	// wait to receive enough replies
-	if rInfo.replyCount < r.QuorumSize()-1 {
+	if inst.recoveryInfo.replyCount < r.QuorumSize()-1 {
 		return
 	}
-
-	// send the most recent Accept
-	if rInfo.status == accepted {
-		inst.cmds, inst.deps = rInfo.cmds, rInfo.deps
+	// now we have received enough relies
+	status := inst.processRecovery(r.QuorumSize())
+	switch status {
+	case accepted:
 		r.sendAccept(p.replicaId, p.instanceId, m)
-		return
+	case preAccepted:
+		r.sendPreAccept(inst.cmds, inst.deps, p.instanceId, m)
 	}
-
-	// send Accepts or PreAccepts
-	if rInfo.status == preAccepted {
-		// if "N/2 identical" {
-		//         sendAccept()
-		//         return
-		// }
-		// sendPreAccept()
-
-		return
-	}
-
-	// sendPreAccept(noop)
-	// [*] I forgot why we can't send accept noop here...
 }
