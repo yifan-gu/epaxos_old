@@ -97,26 +97,26 @@ func (r *Replica) recvPrepareReply(p *PrepareReply, m chan Message) {
 			p.replicaId, p.instanceId)
 		panic(msg)
 	}
-	if !inst.isAtStatus(preparing) {
-		// this is a delayed message. ignore it
-		return
-	}
 	// once we receive a "commited" reply,
-	// then we can leave preparing state and send commits
-	if p.status == committed {
+	// then we can leave preparing state and send commits.
+	// even if we are not in "preparing", we can use this info
+	// and start sending commit immediately
+	if p.status == committed && inst.status < committed {
 		inst.cmds, inst.deps, inst.status = p.cmds, p.deps, committed
 		r.sendCommit(p.replicaId, p.instanceId, m)
 		return
 	}
-	if !p.ok {
+
+	// ignore delayed messages or nacks
+	if !inst.isAtStatus(preparing) || !p.ok {
 		return
 	}
 
 	inst.processPrepareReplies(p)
-
 	if inst.recoveryInfo.replyCount < r.QuorumSize()-1 {
 		return
 	}
+
 	// now we have received enough relies
 	status := inst.processRecovery(r.QuorumSize())
 	switch status {
