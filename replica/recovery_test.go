@@ -15,6 +15,10 @@ func TestSendPrepare(t *testing.T) {
 	// send prepare
 	r := startNewReplica(0, 5)
 	r.sendPrepare(0, conflictNotFound+1, messageChan)
+	if r.InstanceMatrix[0][conflictNotFound+1].status != preparing {
+		t.Fatal("instance's status should be `preparing'")
+	}
+
 	// verify the prepare message for:
 	// - incremented ballot number
 	// - L.i instance
@@ -168,6 +172,51 @@ func TestRecvPrepareAccept(t *testing.T) {
 
 func TestRecvPrepareReply(t *testing.T) {
 	// A lot of work...
+}
+
+func TestRecvPrepareReplyCommit(t *testing.T) {
+	g, r, messageChan := recoveryTestSetup(5)
+	r.sendPrepare(1, conflictNotFound+2, messageChan)
+
+	// create instance in receivers, and make smaller ballots
+	for i := 1; i < r.Size; i++ {
+		g[i].InstanceMatrix[1][conflictNotFound+2] = &Instance{
+			status: committed,
+			cmds: []cmd.Command{
+				cmd.Command("paxos"),
+			},
+			deps:   []InstanceId{1, 0, 0, 0, 0},
+			ballot: r.makeInitialBallot(),
+		}
+	}
+	// recv Prepares
+	for i := 1; i < r.Size; i++ {
+		pp := (<-messageChan).(*Prepare)
+		g[i].recvPrepare(pp, messageChan)
+	}
+
+	// recv PrepareReplies
+	for i := 1; i < r.Size; i++ {
+		pr := (<-messageChan).(*PrepareReply)
+		r.recvPrepareReply(pr, messageChan)
+	}
+
+	// test if r sends Commits
+	for i := 0; i < r.Size-1; i++ {
+		cm := (<-messageChan).(*Commit)
+		if !reflect.DeepEqual(cm, &Commit{
+			cmds: []cmd.Command{
+				cmd.Command("paxos"),
+			},
+			deps:       []InstanceId{1, 0, 0, 0, 0},
+			replicaId:  1,
+			instanceId: conflictNotFound + 2,
+		}) {
+			t.Fatal("PrepareReply message error")
+		}
+
+	}
+	testNoMessagesLeft(messageChan, t)
 }
 
 // helpers

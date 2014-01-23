@@ -39,6 +39,7 @@ func (r *Replica) sendPrepare(replicaId int, instanceId InstanceId, messageChan 
 		instanceId: instanceId,
 	}
 
+	inst.status = preparing
 	go func() {
 		for i := 0; i < r.Size-1; i++ {
 			messageChan <- prepare
