@@ -147,6 +147,7 @@ func (i *Instance) isEqualOrAfterStatus(status int8) bool {
 	return i.status >= status
 }
 
+// process PrepareReplies,
 func (i *Instance) processPrepareReplies(p *PrepareReply) {
 	rInfo := i.recoveryInfo
 

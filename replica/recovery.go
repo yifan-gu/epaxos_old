@@ -98,6 +98,12 @@ func (r *Replica) recvPrepareReply(p *PrepareReply, m chan Message) {
 			p.replicaId, p.instanceId)
 		panic(msg)
 	}
+
+	// update ballot
+	if p.ballot.Compare(inst.ballot) > 0 {
+		inst.ballot = p.ballot
+	}
+
 	// once we receive a "commited" reply,
 	// then we can leave preparing state and send commits.
 	// even if we are not in "preparing", we can use this info
