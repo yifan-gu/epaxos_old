@@ -193,7 +193,7 @@ func (i *Instance) processRecovery(quorumSize int) (status int8) {
 		i.cmds, i.deps, i.status = rInfo.cmds, rInfo.deps, accepted
 	case preAccepted:
 		i.cmds, i.deps = rInfo.cmds, rInfo.deps
-		if rInfo.preAcceptCount >= quorumSize-1 { // N/2-1
+		if rInfo.preAcceptCount >= quorumSize { // N/2 + 1
 			// sendAccept()
 			i.status = accepted
 			break

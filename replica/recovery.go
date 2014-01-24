@@ -25,9 +25,15 @@ func (r *Replica) sendPrepare(replicaId int, instanceId InstanceId, messageChan 
 
 	// clean preAccepCount
 	inst.recoveryInfo = NewRecoveryInfo()
-	if inst.status == preAccepted {
-		inst.recoveryInfo.status = preAccepted
-		inst.recoveryInfo.preAcceptCount = 1
+
+	rInfo := inst.recoveryInfo
+	switch inst.status {
+	case preAccepted:
+		rInfo.status, rInfo.preAcceptCount = preAccepted, 1
+		rInfo.cmds, rInfo.deps = inst.cmds, inst.deps
+	case accepted:
+		rInfo.status = accepted
+		inst.recoveryInfo.maxAcceptBallot = inst.ballot
 	}
 
 	inst.ballot.incNumber()
@@ -130,6 +136,7 @@ func (r *Replica) recvPrepareReply(p *PrepareReply, m chan Message) {
 	case accepted:
 		r.sendAccept(p.replicaId, p.instanceId, m)
 	case preAccepted:
-		r.sendPreAccept(inst.cmds, inst.deps, p.instanceId, m)
+		inst.info.isFastPath = false
+		r.sendPreAccept(p.replicaId, p.instanceId, m)
 	}
 }

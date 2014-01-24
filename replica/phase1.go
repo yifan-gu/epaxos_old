@@ -16,29 +16,38 @@ func (r *Replica) recvPropose(propose *Propose, messageChan chan Message) {
 	instNo := r.MaxInstanceNum[r.Id]
 
 	// set cmds
-	r.InstanceMatrix[r.Id][instNo] = &Instance{
+	inst := &Instance{
 		cmds:   propose.cmds,
 		deps:   deps,
 		status: preAccepted,
 		ballot: r.makeInitialBallot(),
 		info:   NewInstanceInfo(),
 	}
+	inst.info.isFastPath = true
+	r.InstanceMatrix[r.Id][instNo] = inst
 
 	// TODO: before we send the message, we need to record and sync it in disk/persistent.
-	r.sendPreAccept(propose.cmds, deps, instNo, messageChan)
+	//r.sendPreAccept(propose.cmds, deps, instNo, messageChan)
+	r.sendPreAccept(r.Id, instNo, messageChan)
 }
 
-func (r *Replica) sendPreAccept(cmds []cmd.Command, deps dependencies, i InstanceId, m chan Message) {
-	inst := r.InstanceMatrix[r.Id][i]
+//func (r *Replica) sendPreAccept(cmds []cmd.Command, deps dependencies, i InstanceId, m chan Message) {
+func (r *Replica) sendPreAccept(replicaId int, instanceId InstanceId, m chan Message) {
+	inst := r.InstanceMatrix[replicaId][instanceId]
+	if inst == nil {
+		msg := fmt.Sprintf("shouldn't get here, replicaId = %d, instanceId = %d",
+			replicaId, instanceId)
+		panic(msg)
+	}
 	inst.info.preAcceptCount = 0
-	inst.info.isFastPath = true
 
 	// send PreAccept
 	preAccept := &PreAccept{
-		cmds:       cmds,
-		deps:       deps,
-		replicaId:  r.Id,
-		instanceId: i,
+		cmds:       inst.cmds,
+		deps:       inst.deps,
+		replicaId:  replicaId,
+		instanceId: instanceId,
+		ballot:     inst.ballot,
 	}
 
 	// fast quorum
