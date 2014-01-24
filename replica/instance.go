@@ -24,9 +24,9 @@ type InstanceInfo struct {
 }
 
 type RecoveryInfo struct {
-	preAcceptCount  int
-	replyCount      int
-	maxAcceptBallot *Ballot
+	preAcceptedCount  int
+	replyCount        int
+	maxAcceptedBallot *Ballot
 
 	cmds   []cmd.Command
 	deps   dependencies
@@ -152,7 +152,8 @@ func (i *Instance) isEqualOrAfterStatus(status int8) bool {
 }
 
 // process PrepareReplies,
-func (i *Instance) processPrepareReplies(p *PrepareReply) {
+// return true if replies are enough for further process, else return false
+func (i *Instance) processPrepareReplies(p *PrepareReply, quorumSize int) bool {
 	rInfo := i.recoveryInfo
 
 	switch p.status {
@@ -160,8 +161,8 @@ func (i *Instance) processPrepareReplies(p *PrepareReply) {
 		rInfo.status = accepted
 
 		// only record the most recent accepted instance
-		if p.ballot.Compare(rInfo.maxAcceptBallot) > 0 {
-			rInfo.maxAcceptBallot = p.ballot
+		if p.ballot.Compare(rInfo.maxAcceptedBallot) > 0 {
+			rInfo.maxAcceptedBallot = p.ballot
 			rInfo.cmds, rInfo.deps = p.cmds, p.deps
 		}
 	case preAccepted:
@@ -178,11 +179,16 @@ func (i *Instance) processPrepareReplies(p *PrepareReply) {
 		} else {
 			rInfo.deps.union(p.deps)
 		}
-		rInfo.preAcceptCount++
+		rInfo.preAcceptedCount++
 	default:
 		// receiver has no info about the instance
 	}
+
 	rInfo.replyCount++
+	if rInfo.replyCount >= quorumSize-1 {
+		return true
+	}
+	return false
 }
 
 func (i *Instance) processRecovery(quorumSize int) (status int8) {
@@ -193,7 +199,7 @@ func (i *Instance) processRecovery(quorumSize int) (status int8) {
 		i.cmds, i.deps, i.status = rInfo.cmds, rInfo.deps, accepted
 	case preAccepted:
 		i.cmds, i.deps = rInfo.cmds, rInfo.deps
-		if rInfo.preAcceptCount >= quorumSize { // N/2 + 1
+		if rInfo.preAcceptedCount >= quorumSize { // N/2 + 1
 			// sendAccept()
 			i.status = accepted
 			break

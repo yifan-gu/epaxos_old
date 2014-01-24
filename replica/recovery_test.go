@@ -174,7 +174,7 @@ func TestRecvPrepareReply(t *testing.T) {
 	// A lot of work...
 }
 
-// In this test, the sender of the Prepare will receive replis contains Commit,
+// In this test, the sender of the Prepare will receive replies containing Commit,
 // so the sender of should send one round of Commits
 // Success: Get one round of Commits messages, Failure: Otherwise
 func TestRecvPrepareReplyCommit(t *testing.T) {
@@ -222,7 +222,7 @@ func TestRecvPrepareReplyCommit(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive some replies contains Accepts,
+// In this test, the sender of the Prepare message will receive some replies containing Accepts,
 // so after receiving N/2 replies, it should send the most recent Accept message
 // Success: send one round of Accept messages, Failure: otherwise
 func TestRecvPrepareReplyAccept(t *testing.T) {
@@ -300,9 +300,9 @@ func TestRecvPrepareReplyAccept(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive at least N/2 replies contains PreAccept,
-// so after receiving N/2 replies, it should send Accept messages contain the union of the all deps
-// Success: send one round of Accept messages, Failure: otherwise
+// In this test, the sender of the Prepare message will receive at least N/2 replies containing PreAccept,
+// so after receiving N/2 replies, it should send Accept messages containing the union of the all deps
+// Success: send one round of PreAccept messages, Failure: otherwise
 func TestRecvPrepareReplyPreAccept1(t *testing.T) {
 	g, r, messageChan := recoveryTestSetup(9)
 
@@ -388,9 +388,9 @@ func TestRecvPrepareReplyPreAccept1(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive at less than N/2 replies contains PreAccept,
-// so after receiving N/2 replies, it should send PreAccept messages contain the union of the all deps
-// Success: send one round of Accept messages, Failure: otherwise
+// In this test, the sender of the Prepare message will receive less than N/2 replies containing PreAccept,
+// so after receiving N/2 replies, it should send PreAccept messages containing the union of the all deps
+// Success: send one round of PreAccept messages, Failure: otherwise
 func TestRecvPrepareReplyPreAccept2(t *testing.T) {
 	g, r, messageChan := recoveryTestSetup(9)
 
@@ -455,7 +455,46 @@ func TestRecvPrepareReplyPreAccept2(t *testing.T) {
 			instanceId: conflictNotFound + 3,
 			ballot:     r.makeInitialBallot().getIncNumCopy(),
 		}) {
-			t.Log(pa)
+			t.Fatal("PrepareReply message error")
+		}
+
+	}
+	testNoMessagesLeft(messageChan, t)
+}
+
+// In this test, the sender of the Prepare message will receive replies contains only nack
+// so after receiving N/2 replies, it should send PreAccept messages containing noop
+// Success: send one round of PreAccept messages, Failure: otherwise
+func TestRecvPrepareReplyPreAcceptNoop(t *testing.T) {
+	g, r, messageChan := recoveryTestSetup(9)
+	r.sendPrepare(1, conflictNotFound+3, messageChan)
+
+	// recv Prepares
+	for i := 1; i < r.Size; i++ {
+		pp := (<-messageChan).(*Prepare)
+		g[i].recvPrepare(pp, messageChan)
+	}
+
+	// recv PrepareReplies
+	for i := 1; i < r.Size; i++ {
+		pr := (<-messageChan).(*PrepareReply)
+		r.recvPrepareReply(pr, messageChan)
+	}
+	if r.InstanceMatrix[1][conflictNotFound+3].info.isFastPath != false {
+		t.Fatal("isFastPath should be false")
+	}
+
+	// test if r sends PreAccepts
+	for i := 0; i < r.fastQuorumSize(); i++ {
+		pa := (<-messageChan).(*PreAccept)
+		// test if the sender send the right PreAccept message
+		if !reflect.DeepEqual(pa, &PreAccept{
+			cmds:       nil,
+			deps:       nil,
+			replicaId:  1,
+			instanceId: conflictNotFound + 3,
+			ballot:     r.makeInitialBallot().getIncNumCopy(),
+		}) {
 			t.Fatal("PrepareReply message error")
 		}
 

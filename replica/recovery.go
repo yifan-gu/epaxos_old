@@ -29,15 +29,15 @@ func (r *Replica) sendPrepare(replicaId int, instanceId InstanceId, messageChan 
 	rInfo := inst.recoveryInfo
 	switch inst.status {
 	case preAccepted:
-		rInfo.status, rInfo.preAcceptCount = preAccepted, 1
+		rInfo.status, rInfo.preAcceptedCount = preAccepted, 1
 		rInfo.cmds, rInfo.deps = inst.cmds, inst.deps
 	case accepted:
 		rInfo.status = accepted
-		inst.recoveryInfo.maxAcceptBallot = inst.ballot
+		inst.recoveryInfo.maxAcceptedBallot = inst.ballot
 	}
 
 	inst.ballot.incNumber()
-	inst.ballot.setReplicaId(r.Id)
+	inst.ballot.setReplicaId(r.Id) // change replicaId to the sender of Prepare
 
 	prepare := &Prepare{
 		ballot:     inst.ballot,
@@ -125,8 +125,7 @@ func (r *Replica) recvPrepareReply(p *PrepareReply, m chan Message) {
 		return
 	}
 
-	inst.processPrepareReplies(p)
-	if inst.recoveryInfo.replyCount < r.QuorumSize()-1 {
+	if !inst.processPrepareReplies(p, r.QuorumSize()) {
 		return
 	}
 
