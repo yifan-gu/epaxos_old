@@ -226,7 +226,7 @@ func TestRecvPrepareReplyCommit(t *testing.T) {
 // so after receiving N/2 replies, it should send the most recent Accept message
 // Success: send one round of Accept messages, Failure: otherwise
 func TestRecvPrepareReplyAccept(t *testing.T) {
-	g, r, messageChan := recoveryTestSetup(10)
+	g, r, messageChan := recoveryTestSetup(9)
 
 	r.InstanceMatrix[1][conflictNotFound+3] = NewInstance(nil, nil, 0)
 	r.InstanceMatrix[1][conflictNotFound+3].ballot = r.makeInitialBallot().getIncNumCopy().getIncNumCopy()
@@ -292,6 +292,89 @@ func TestRecvPrepareReplyAccept(t *testing.T) {
 			replicaId:  1,
 			instanceId: conflictNotFound + 3,
 			ballot:     r.makeInitialBallot().getIncNumCopy().getIncNumCopy().getIncNumCopy(),
+		}) {
+			t.Fatal("PrepareReply message error")
+		}
+
+	}
+	testNoMessagesLeft(messageChan, t)
+}
+
+// In this test, the sender of the Prepare message will receive at least N/2 replies contains PreAccept,
+// so after receiving N/2 replies, it should send Accept messages contain the union of the all deps
+// Success: send one round of Accept messages, Failure: otherwise
+func TestRecvPrepareReplyPreAccept(t *testing.T) {
+	g, r, messageChan := recoveryTestSetup(9)
+
+	r.sendPrepare(1, conflictNotFound+3, messageChan)
+
+	// create instance in receivers, and make smaller ballots
+	g[1].InstanceMatrix[1][conflictNotFound+3] = &Instance{
+		status: preAccepted,
+		cmds: []cmd.Command{
+			cmd.Command("paxos"),
+		},
+		deps:   []InstanceId{0, 1, 1, 0, 0},
+		ballot: g[1].makeInitialBallot(),
+	}
+	g[2].InstanceMatrix[1][conflictNotFound+3] = &Instance{
+		status: preAccepted,
+		cmds: []cmd.Command{
+			cmd.Command("paxos"),
+		},
+		deps:   []InstanceId{0, 2, 0, 0, 0},
+		ballot: g[1].makeInitialBallot(),
+	}
+	g[3].InstanceMatrix[1][conflictNotFound+3] = &Instance{
+		status: preAccepted,
+		cmds: []cmd.Command{
+			cmd.Command("paxos"),
+		},
+		deps:   []InstanceId{0, 0, 0, 1, 0},
+		ballot: g[1].makeInitialBallot(),
+	}
+	g[4].InstanceMatrix[1][conflictNotFound+3] = &Instance{
+		status: preAccepted,
+		cmds: []cmd.Command{
+			cmd.Command("paxos"),
+		},
+		deps: []InstanceId{0, 0, 2, 0, 1},
+		// here this receiver will send back nack
+		ballot: g[1].makeInitialBallot().getIncNumCopy().getIncNumCopy(),
+	}
+	g[5].InstanceMatrix[1][conflictNotFound+3] = &Instance{
+		status: preAccepted,
+		cmds: []cmd.Command{
+			cmd.Command("paxos"),
+		},
+		deps:   []InstanceId{1, 0, 1, 0, 1},
+		ballot: g[1].makeInitialBallot(),
+	}
+
+	// recv Prepares
+	for i := 1; i < r.Size; i++ {
+		pp := (<-messageChan).(*Prepare)
+		g[i].recvPrepare(pp, messageChan)
+	}
+
+	// recv PrepareReplies
+	for i := 1; i < r.Size; i++ {
+		pr := (<-messageChan).(*PrepareReply)
+		r.recvPrepareReply(pr, messageChan)
+	}
+
+	// test if r sends Accepts, (it should send only one round of Accepts)
+	for i := 0; i < r.QuorumSize()-1; i++ {
+		ac := (<-messageChan).(*Accept)
+		// test if the sender send the right Accept message
+		if !reflect.DeepEqual(ac, &Accept{
+			cmds: []cmd.Command{
+				cmd.Command("paxos"),
+			},
+			deps:       []InstanceId{1, 2, 1, 1, 1}, // should be the union of all replies
+			replicaId:  1,
+			instanceId: conflictNotFound + 3,
+			ballot:     g[1].makeInitialBallot().getIncNumCopy().getIncNumCopy(),
 		}) {
 			t.Fatal("PrepareReply message error")
 		}

@@ -132,6 +132,10 @@ func (i *Instance) setFastPath(ok bool) {
 }
 
 func (i *Instance) unionDeps(deps dependencies) bool {
+	if i.deps == nil {
+		i.deps = deps
+		return false
+	}
 	return i.deps.union(deps)
 }
 
@@ -164,12 +168,16 @@ func (i *Instance) processPrepareReplies(p *PrepareReply) {
 		if rInfo.status >= accepted {
 			break
 		}
-		rInfo.status = preAccepted
+		rInfo.cmds, rInfo.status = p.cmds, preAccepted
 
 		// if former leader commits on fast-path,
 		// it will only send to fast-quroum,
 		// so we can safely union all deps here.
-		rInfo.deps.union(p.deps)
+		if rInfo.deps == nil {
+			rInfo.deps = p.deps
+		} else {
+			rInfo.deps.union(p.deps)
+		}
 		rInfo.preAcceptCount++
 	default:
 		// receiver has no info about the instance
@@ -185,7 +193,7 @@ func (i *Instance) processRecovery(quorumSize int) (status int8) {
 		i.cmds, i.deps, i.status = rInfo.cmds, rInfo.deps, accepted
 	case preAccepted:
 		i.cmds, i.deps = rInfo.cmds, rInfo.deps
-		if rInfo.preAcceptCount >= quorumSize { // N/2 + 1
+		if rInfo.preAcceptCount >= quorumSize-1 { // N/2-1
 			// sendAccept()
 			i.status = accepted
 			break
