@@ -502,6 +502,46 @@ func TestRecvPrepareReplyPreAcceptNoop(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
+// In this test, the sender of the Prepare message will receive less than N/2 replies
+// so it should not send out anything
+// Success: no messages sent by sender after it receives PrepareReplies
+func TestRecvPrepareReplyNothing(t *testing.T) {
+	g, r, messageChan := recoveryTestSetup(9)
+	r.sendPrepare(1, conflictNotFound+3, messageChan)
+
+	// recv Prepares
+	for i := 0; i < r.QuorumSize(); i++ {
+		<-messageChan
+	}
+
+	end := false
+	i := 1
+	for !end {
+		// recv Prepares
+		select {
+		case m := <-messageChan:
+			pp := m.(*Prepare)
+			g[i].recvPrepare(pp, messageChan)
+			i++
+		default:
+			end = true
+		}
+	}
+
+	end = false
+	for !end {
+		// recv PrepareReplies
+		select {
+		case m := <-messageChan:
+			pr := m.(*PrepareReply)
+			r.recvPrepareReply(pr, messageChan)
+		default:
+			end = true
+		}
+	}
+	testNoMessagesLeft(messageChan, t)
+}
+
 // helpers
 func recoveryTestSetup(size int) ([]*Replica, *Replica, chan Message) {
 	g := testMakeRepGroup(size)
