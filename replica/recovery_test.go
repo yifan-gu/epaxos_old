@@ -174,7 +174,8 @@ func TestRecvPrepareReply(t *testing.T) {
 	// A lot of work...
 }
 
-// In this test, the sender of the Prepare will receive replies containing Commit,
+// TestRecvPrepareReplyCommit tests the sender's behaviour,
+// the sender of the Prepare will receive replies containing Commit,
 // so the sender of should send one round of Commits
 // Success: Get one round of Commits messages, Failure: Otherwise
 func TestRecvPrepareReplyCommit(t *testing.T) {
@@ -222,7 +223,8 @@ func TestRecvPrepareReplyCommit(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive some replies containing Accepts,
+// TestRecvPrepareReplyAccept tests the sender's behaviour,
+// the sender of the Prepare message will receive some replies containing Accepts,
 // so after receiving N/2 replies, it should send the most recent Accept message
 // Success: send one round of Accept messages, Failure: otherwise
 func TestRecvPrepareReplyAccept(t *testing.T) {
@@ -300,7 +302,8 @@ func TestRecvPrepareReplyAccept(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive at least N/2 replies containing PreAccept,
+// TestRecvPrepareReplyPreAccept tests the sender's behaviour,
+// the sender of the Prepare message will receive at least N/2 replies containing PreAccept,
 // so after receiving N/2 replies, it should send Accept messages containing the union of the all deps
 // Success: send one round of PreAccept messages, Failure: otherwise
 func TestRecvPrepareReplyPreAccept1(t *testing.T) {
@@ -388,7 +391,8 @@ func TestRecvPrepareReplyPreAccept1(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive less than N/2 replies containing PreAccept,
+// TestRecvPrepareReplyPreAccept2 tests the sender's behaviour,
+// the sender of the Prepare message will receive less than N/2 replies containing PreAccept,
 // so after receiving N/2 replies, it should send PreAccept messages containing the union of the all deps
 // Success: send one round of PreAccept messages, Failure: otherwise
 func TestRecvPrepareReplyPreAccept2(t *testing.T) {
@@ -462,7 +466,8 @@ func TestRecvPrepareReplyPreAccept2(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive replies contains only nack
+// TestRecvPrepareReplyPreAcceptNoop tests the sender's behaviour,
+// the sender of the Prepare message will receive replies contains only nack
 // so after receiving N/2 replies, it should send PreAccept messages containing noop
 // Success: send one round of PreAccept messages, Failure: otherwise
 func TestRecvPrepareReplyPreAcceptNoop(t *testing.T) {
@@ -502,7 +507,8 @@ func TestRecvPrepareReplyPreAcceptNoop(t *testing.T) {
 	testNoMessagesLeft(messageChan, t)
 }
 
-// In this test, the sender of the Prepare message will receive less than N/2 replies
+// In TestRecvPrepareReplyNothing,
+// the sender of the Prepare message will receive less than N/2 replies
 // so it should not send out anything
 // Success: no messages sent by sender after it receives PrepareReplies
 func TestRecvPrepareReplyNothing(t *testing.T) {
